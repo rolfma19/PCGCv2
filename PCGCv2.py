@@ -2,7 +2,7 @@ import os
 import re
 import argparse
 import glob
-
+from concurrent.futures.process import ProcessPoolExecutor
 
 def run_pcgcv2(ply_path):
     python_exec = "/home/whma/miniconda3/envs/pcgcv2/bin/python"
@@ -24,6 +24,12 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def run_pcgcv2_one(ply_path):
+    output=run_pcgcv2(ply_path)
+    res = re.search(r"bpps:.*\nWrite", output)
+    res = re.search("[-+]?[0-9]*\.?[0-9]+",res.group(0))        
+    bpp = float(res.group(0).split(" ")[0])
+    return bpp
 
 if __name__ == "__main__":
     ply_dir = ""
@@ -34,20 +40,15 @@ if __name__ == "__main__":
         ply_list = sorted(
             glob.glob(os.path.join(ply_dir, "**/" + "*.ply"), recursive=True)
         )
-
+        pool=ProcessPoolExecutor(16)
         total_bpp = 0
-        for ply_path in ply_list:
-            output = run_pcgcv2(ply_path)
-            res = re.search(r"bpps:.*\nWrite", output)
-            res = re.search("[-+]?[0-9]*\.?[0-9]+",res.group(0))        
-            bpp = float(res.group(0).split(" ")[0])
-            total_bpp += bpp
-            print(f"{ply_path} : bpp {bpp}")
+        for ply_path in ply_list:           
+            bpp = pool.submit(run_pcgcv2_one,ply_path)
+            total_bpp += bpp.result()
+            print(f"{ply_path} : bpp {bpp.result()}")
+        pool.shutdown()
         print(f"avg bpp: {total_bpp/len(ply_list)}")
     else:
         ply_path = ply_dir
-        output = run_pcgcv2(ply_path)
-        res = re.search(r"bpps:.*\nWrite", output)
-        res = re.search("[-+]?[0-9]*\.?[0-9]+",res.group(0))        
-        bpp = float(res.group(0).split(" ")[0])
+        bpp = run_pcgcv2_one(ply_path)
         print(f"{ply_path} : bpp {bpp}")
