@@ -7,7 +7,7 @@ import torch
 import torch.utils.data
 from torch.utils.data.sampler import Sampler
 import MinkowskiEngine as ME
-from data_utils import read_h5_geo, read_ply_ascii_geo
+from third_party.PCGCv2.data_utils import read_h5_geo, read_ply_ascii_geo
 
 class InfSampler(Sampler):
     """Samples elements randomly, without replacement.
@@ -50,10 +50,10 @@ def collate_pointcloud_fn(list_data):
     list_data = new_list_data
     if len(list_data) == 0:
         raise ValueError('No data in the batch')
-    coords, feats = list(zip(*list_data))
+    coords, feats,filedir = list(zip(*list_data))
     coords_batch, feats_batch = ME.utils.sparse_collate(coords, feats)
 
-    return coords_batch, feats_batch
+    return coords_batch, feats_batch,filedir
 
 
 class PCDataset(torch.utils.data.Dataset):
@@ -84,7 +84,7 @@ class PCDataset(torch.utils.data.Dataset):
                 self.last_cache_percent = cache_percent
         feats = feats.astype("float32")
 
-        return (coords, feats)
+        return (coords, feats,filedir)
 
 
 def make_data_loader(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=False, 
