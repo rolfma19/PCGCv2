@@ -1,7 +1,7 @@
 import torch
 import MinkowskiEngine as ME
 
-from data_utils import isin, istopk
+from third_party.PCGCv2.data_utils import isin, istopk
 
 
 class InceptionResNet(torch.nn.Module):
