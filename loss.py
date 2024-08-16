@@ -12,7 +12,7 @@ def get_bce(data, groud_truth):
     bce /= torch.log(torch.tensor(2.0)).to(bce.device)
     sum_bce = bce * data.shape[0]
     
-    return bce
+    return sum_bce
 
 def get_bits(likelihood):
     bits = -torch.sum(torch.log2(likelihood))
