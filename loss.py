@@ -10,7 +10,7 @@ def get_bce(data, groud_truth):
     mask = isin(data.C, groud_truth.C)
     bce = criterion(data.F.squeeze(), mask.type(data.F.dtype))
     bce /= torch.log(torch.tensor(2.0)).to(bce.device)
-    sum_bce = bce * data.shape[0]
+    # sum_bce = bce * data.shape[0]
     
     return bce
 
