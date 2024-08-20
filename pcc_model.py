@@ -1,8 +1,8 @@
 import torch
 import MinkowskiEngine as ME
 
-from autoencoder import Encoder, Decoder
-from entropy_model import EntropyBottleneck
+from third_party.PCGCv2.autoencoder import Encoder, Decoder
+from third_party.PCGCv2.entropy_model import EntropyBottleneck
 
 
 class PCCModel(torch.nn.Module):
