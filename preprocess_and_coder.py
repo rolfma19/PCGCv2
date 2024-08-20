@@ -12,6 +12,23 @@ from third_party.PCGCv2.pc_error import pc_error
 
 from third_party.PCGCv2.pcc_model import PCCModel
 
+import argparse
+import torch
+from bpcp.archs.autoencoder_net import Autoencoder
+from accelerate import Accelerator, load_checkpoint_in_model
+from third_party.PCGCv2.data_utils import (
+    load_sparse_tensor,
+    write_ply_ascii_geo,scale_sparse_tensor
+)
+from third_party.PCGCv2.coder import Coder
+from third_party.PCGCv2.pcc_model import PCCModel
+from bpcp.losses.pcgcv2_loss import get_pcgcv2_loss
+import glob
+import os
+import time
+import numpy as np
+
+device="cuda"
 
 class CoordinateCoder():
     """encode/decode coordinates using gpcc
@@ -71,8 +88,9 @@ class FeatureCoder():
 
 
 class Coder():
-    def __init__(self, model, filename):
+    def __init__(self, model, pre_model, filename):
         self.model = model 
+        self.pre_model=pre_model
         self.filename = filename
         self.coordinate_coder = CoordinateCoder(filename)
         self.feature_coder = FeatureCoder(self.filename, model.entropy_bottleneck)
@@ -80,6 +98,7 @@ class Coder():
     @torch.no_grad()
     def encode(self, x, postfix=''):
         # Encoder
+        _,x=self.pre_model(x)
         y_list = self.model.encoder(x)
         y = sort_spare_tensor(y_list[0])
         num_points = [len(ground_truth) for ground_truth in y_list[1:] + [x]]
@@ -115,8 +134,13 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--ckptdir", default='ckpts/r3_0.10bpp.pth')
-    parser.add_argument("--filedir", default='../../../testdata/8iVFB/longdress_vox10_1300.ply')
+    parser.add_argument("--ckptdir", default='third_party/PCGCv2/ckpts/r3_0.10bpp.pth')
+    parser.add_argument(
+        "--pre-ckpt",
+        type=str,
+        default="./exps/AutoencoderNetRefining2024-8-20T11:00:49/ckpts/best_model.ckpt",
+    )
+    parser.add_argument("--filedir", default='/data/testdata/8iVFB/longdress_vox10_1300.ply')
     parser.add_argument("--scaling_factor", type=float, default=1.0, help='scaling_factor')
     parser.add_argument("--rho", type=float, default=1.0, help='the ratio of the number of output points to the number of input points')
     parser.add_argument("--res", type=int, default=1024, help='resolution')
@@ -136,6 +160,10 @@ if __name__ == '__main__':
 
     # model
     print('='*10, 'Test', '='*10)
+    accelerator = Accelerator()
+    pre_model = Autoencoder()
+    pre_model = accelerator.prepare(pre_model)
+    load_checkpoint_in_model(pre_model, args.pre_ckpt)
     model = PCCModel().to(device)
     assert os.path.exists(args.ckptdir)
     ckpt = torch.load(args.ckptdir)
@@ -143,7 +171,7 @@ if __name__ == '__main__':
     print('load checkpoint from \t', args.ckptdir)
 
     # coder
-    coder = Coder(model=model, filename=filename)
+    coder = Coder(model=model,pre_model=pre_model, filename=filename)
 
     # down-scale
     if args.scaling_factor!=1: 
