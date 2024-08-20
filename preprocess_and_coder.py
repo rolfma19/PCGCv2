@@ -98,8 +98,8 @@ class Coder():
     @torch.no_grad()
     def encode(self, x, postfix=''):
         # Encoder
-        _,x=self.pre_model(x)
-        y_list = self.model.encoder(x)
+        x_cls,x=self.pre_model(x)
+        y_list = self.model.encoder(x_cls)
         y = sort_spare_tensor(y_list[0])
         num_points = [len(ground_truth) for ground_truth in y_list[1:] + [x]]
         with open(self.filename+postfix+'_num_points.bin', 'wb') as f:
