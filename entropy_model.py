@@ -92,7 +92,7 @@ class EntropyBottleneck(nn.Module):
         """
         logits = inputs
         for i in range(len(self._filters) + 1):
-            matrix = torch.nn.functional.softplus(self._matrices[i])
+            matrix = torch.nn.functional.softplus(self._matrices[i].clone())
             logits = torch.matmul(matrix, logits)
             logits += self._biases[i]
             factor = torch.tanh(self._factors[i])
