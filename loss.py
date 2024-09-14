@@ -2,7 +2,7 @@ import torch
 import MinkowskiEngine as ME
 
 from third_party.PCGCv2.data_utils import isin, istopk
-criterion = torch.nn.BCELoss()
+criterion = torch.nn.BCEWithLogitsLoss()
 
 def get_bce(data, groud_truth):
     """ Input data and ground_truth are sparse tensor.
