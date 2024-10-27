@@ -46,7 +46,7 @@ class EntropyBottleneck(nn.Module):
     > J. Balle, D. Minnen, S. Singh, S. J. Hwang, N. Johnston
     > https://arxiv.org/abs/1802.01436"""
     
-    def __init__(self, channels, init_scale=8, filters=(3,3,3)):
+    def __init__(self, channels, init_scale=10, filters=(3,3,3,3)):
         """create parameters.
         """
         super(EntropyBottleneck, self).__init__()
