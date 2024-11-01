@@ -55,6 +55,7 @@ def collate_pointcloud_fn(list_data):
 
     return coords_batch, feats_batch,filedir
 
+import open3d as o3d
 
 class PCDataset(torch.utils.data.Dataset):
 
@@ -67,7 +68,7 @@ class PCDataset(torch.utils.data.Dataset):
     def __len__(self):
 
         return len(self.files)
-    
+
     def __getitem__(self, idx):
         filedir = self.files[idx]
 
@@ -75,7 +76,10 @@ class PCDataset(torch.utils.data.Dataset):
             coords, feats = self.cache[idx]
         else:
             if filedir.endswith('.h5'): coords = read_h5_geo(filedir)
-            if filedir.endswith('.ply'): coords = read_ply_ascii_geo(filedir)
+            if filedir.endswith(".ply"):
+                ply = o3d.io.read_point_cloud(filedir, format="ply")
+                coords = np.asarray(ply.points)
+                # coords = read_ply_ascii_geo(filedir)
             feats = np.expand_dims(np.ones(coords.shape[0]), 1).astype('int')
             # cache
             self.cache[idx] = (coords, feats)
@@ -121,6 +125,3 @@ if __name__ == "__main__":
         coords, feats = test_iter.next()
         print("="*20, "check dataset", "="*20, 
             "\ncoords:\n", coords, "\nfeat:\n", feats)
-
-
-
