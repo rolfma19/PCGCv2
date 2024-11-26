@@ -10,6 +10,8 @@ from data_utils import write_ply_ascii_geo, read_ply_ascii_geo
 
 from gpcc import gpcc_encode, gpcc_decode
 from pc_error import pc_error
+from bpcp.utils.dmetric import run_dmetric_one
+import pandas as pd
 
 from pcc_model import PCCModel
 
@@ -113,6 +115,18 @@ class Coder():
         return out
 
 if __name__ == '__main__':
+    data = dict()
+    data["point cloud"] = list()
+    data["r0"] = list()
+    data["r1"] = list()
+    data["r2"] = list()
+    data["r3"] = list()
+    data["r4"] = list()
+    data["r5"] = list()
+    data["r6"] = list()
+    df = pd.DataFrame(
+        columns=["point cloud", "r0", "r1", "r2", "r3", "r4", "r5", "r6"]
+    )
     import argparse
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -123,68 +137,96 @@ if __name__ == '__main__':
     parser.add_argument("--res", type=int, default=1024, help='resolution')
     args = parser.parse_args()
     filedir = args.filedir
+    ply_list=sorted(glob.glob(filedir+"/**/" + "*.ply", recursive=True))
+    ckpt_list=["ckpts/r7_0.4bpp.pth","ckpts/r6_0.3bpp.pth","ckpts/r5_0.25bpp.pth","ckpts/r4_0.15bpp.pth",
+               "ckpts/r3_0.10bpp.pth","ckpts/r2_0.05bpp.pth","ckpts/r1_0.025bpp.pth"]
+    for i in range(7):
+        args.ckptdir=ckpt_list[i]
+        # model
+        print('='*10, 'Test', '='*10)
+        model = PCCModel().to(device)
+        assert os.path.exists(args.ckptdir)
+        ckpt = torch.load(args.ckptdir)
+        model.load_state_dict(ckpt['model'])
+        print('load checkpoint from \t', args.ckptdir)
     
-    # model
-    print('='*10, 'Test', '='*10)
-    model = PCCModel().to(device)
-    assert os.path.exists(args.ckptdir)
-    ckpt = torch.load(args.ckptdir)
-    model.load_state_dict(ckpt['model'])
-    print('load checkpoint from \t', args.ckptdir)
+        total_bpp=0
+        for filedir in ply_list:
+            # load data
+            start_time = time.time()
+            x = load_sparse_tensor(filedir, device)
+            # print('Loading Time:\t', round(time.time() - start_time, 4), 's')
 
-    ply_list=glob.glob(os.path.join(filedir, "**/" + "*.ply"), recursive=True)
-    total_bpp=0
-    for filedir in ply_list:
-        # load data
-        start_time = time.time()
-        x = load_sparse_tensor(filedir, device)
-        # print('Loading Time:\t', round(time.time() - start_time, 4), 's')
+            outdir = './output'
+            if not os.path.exists(outdir): os.makedirs(outdir)
+            filename = os.path.split(filedir)[-1].split('.')[0]
+            filename = os.path.join(outdir, filename)
+            print(filename)
 
-        outdir = './output'
-        if not os.path.exists(outdir): os.makedirs(outdir)
-        filename = os.path.split(filedir)[-1].split('.')[0]
-        filename = os.path.join(outdir, filename)
-        print(filename)
+            # coder
+            coder = Coder(model=model, filename=filename)
 
-        # coder
-        coder = Coder(model=model, filename=filename)
+            # down-scale
+            if args.scaling_factor!=1: 
+                x_in = scale_sparse_tensor(x, factor=args.scaling_factor)
+            else: 
+                x_in = x
 
-        # down-scale
-        if args.scaling_factor!=1: 
-            x_in = scale_sparse_tensor(x, factor=args.scaling_factor)
-        else: 
-            x_in = x
+            # encode
+            start_time = time.time()
+            _ = coder.encode(x_in)
+            # print('Enc Time:\t', round(time.time() - start_time, 3), 's')
 
-        # encode
-        start_time = time.time()
-        _ = coder.encode(x_in)
-        # print('Enc Time:\t', round(time.time() - start_time, 3), 's')
+            # decode
+            start_time = time.time()
+            x_dec = coder.decode(rho=args.rho)
+            # print('Dec Time:\t', round(time.time() - start_time, 3), 's')
 
-        # decode
-        start_time = time.time()
-        x_dec = coder.decode(rho=args.rho)
-        # print('Dec Time:\t', round(time.time() - start_time, 3), 's')
+            # up-scale
+            if args.scaling_factor!=1: 
+                x_dec = scale_sparse_tensor(x_dec, factor=1.0/args.scaling_factor)
 
-        # up-scale
-        if args.scaling_factor!=1: 
-            x_dec = scale_sparse_tensor(x_dec, factor=1.0/args.scaling_factor)
+            # bitrate
+            bits = np.array([os.path.getsize(filename + postfix)*8 \
+                                    for postfix in ['_C.bin', '_F.bin', '_H.bin', '_num_points.bin']])
+            bpps = (bits/len(x)).round(3)
+            total_bpp+=sum(bpps).round(3)
+            # print('bits:\t', bits, '\nbpps:\t', bpps)
+            print('bits:\t', sum(bits), '\nbpps:\t',  sum(bpps).round(3))
 
-        # bitrate
-        bits = np.array([os.path.getsize(filename + postfix)*8 \
-                                for postfix in ['_C.bin', '_F.bin', '_H.bin', '_num_points.bin']])
-        bpps = (bits/len(x)).round(3)
-        total_bpp+=bpps
-        # print('bits:\t', bits, '\nbpps:\t', bpps)
-        print('bits:\t', sum(bits), '\nbpps:\t',  sum(bpps).round(3))
+            # distortion
+            start_time = time.time()
+            write_ply_ascii_geo(filename+'_dec.ply', x_dec.C.detach().cpu().numpy()[:,1:])
+            # print('Write PC Time:\t', round(time.time() - start_time, 3), 's')
 
-        # distortion
-        start_time = time.time()
-        write_ply_ascii_geo(filename+'_dec.ply', x_dec.C.detach().cpu().numpy()[:,1:])
-        # print('Write PC Time:\t', round(time.time() - start_time, 3), 's')
-
-        start_time = time.time()
-        pc_error_metrics = pc_error(filedir, filename+'_dec.ply', res=args.res, show=False)
-        # print('PC Error Metric Time:\t', round(time.time() - start_time, 3), 's')
-        # print('pc_error_metrics:', pc_error_metrics)
-        # print('D1 PSNR:\t', pc_error_metrics["mseF,PSNR (p2point)"][0])
-    print("Average bpp:", total_bpp/len(ply_list))
+            start_time = time.time()
+            if "vox10" in filename:
+                resolution = 1024
+            if "vox9" in filename:
+                resolution = 512
+            if "vox11" in filename:
+                resolution = 2048
+            if "queen" in filename:
+                resolution = 1024
+            psnr_d1, psnr_d2 = run_dmetric_one(
+                filedir,
+                filename+'_dec.ply',
+                resolution=resolution,
+                norm=True,
+            )
+            # pc_error_metrics = pc_error(filedir, filename+'_dec.ply', res=args.res, show=False)
+            # print('PC Error Metric Time:\t', round(time.time() - start_time, 3), 's')
+            # print('pc_error_metrics:', pc_error_metrics)
+            # print('D1 PSNR:\t', pc_error_metrics["mseF,PSNR (p2point)"][0])
+            print(f"psnr d1:{psnr_d1} psnr d2:{psnr_d2}")
+            
+            data[f"r{i}"].extend([sum(bpps), sum(bits), psnr_d1, psnr_d2])
+            if i==0:
+                data["point cloud"].extend([filename, "bits", "psnr_d1", "psnr_d2"])
+            # break
+        if i==0:
+            df["point cloud"]=data["point cloud"]
+        df[f"r{i}"] = data[f"r{i}"]
+        # print("Average bpp:", total_bpp/len(ply_list))
+    print(df)
+    df.to_csv("result.csv", index=False)
