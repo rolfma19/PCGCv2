@@ -99,9 +99,11 @@ def sort_spare_tensor(sparse_tensor):
                                          device=sparse_tensor.device)
 
     return sparse_tensor_sort
-
+import open3d as o3d
 def load_sparse_tensor(filedir, device):
-    coords = torch.tensor(read_ply_ascii_geo(filedir)).int()
+    ply = o3d.io.read_point_cloud(filedir, format="ply")
+    coords = np.asarray(ply.points)
+    # coords = torch.tensor(read_ply_ascii_geo(filedir)).int()
     feats = torch.ones((len(coords),1)).float()
     # coords, feats = ME.utils.sparse_quantize(coordinates=coords, features=feats, quantization_size=1)
     coords, feats = ME.utils.sparse_collate([coords], [feats])
