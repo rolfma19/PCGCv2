@@ -9,6 +9,7 @@ from torch.utils.data.sampler import Sampler
 import MinkowskiEngine as ME
 from third_party.PCGCv2.data_utils import read_h5_geo, read_ply_ascii_geo
 
+
 class InfSampler(Sampler):
     """Samples elements randomly, without replacement.
 
@@ -50,12 +51,14 @@ def collate_pointcloud_fn(list_data):
     list_data = new_list_data
     if len(list_data) == 0:
         raise ValueError('No data in the batch')
-    coords, feats,filedir = list(zip(*list_data))
+    (coords, coords_offset, feats, filedir) = list(zip(*list_data))
     coords_batch, feats_batch = ME.utils.sparse_collate(coords, feats)
 
-    return coords_batch, feats_batch,filedir
+    return coords_batch, coords_offset, feats_batch, filedir
+
 
 import open3d as o3d
+
 
 class PCDataset(torch.utils.data.Dataset):
 
@@ -75,24 +78,28 @@ class PCDataset(torch.utils.data.Dataset):
         if idx in self.cache:
             coords, feats = self.cache[idx]
         else:
-            if filedir.endswith('.h5'): coords = read_h5_geo(filedir)
+            if filedir.endswith('.h5'): # 纯几何，没有颜色
+                coords = read_h5_geo(filedir)
+                feats = np.ones([coords.shape[0], 1])
             if filedir.endswith(".ply"):
                 ply = o3d.io.read_point_cloud(filedir, format="ply")
                 coords = np.asarray(ply.points)
-                # coords = read_ply_ascii_geo(filedir)
-            feats = np.expand_dims(np.ones(coords.shape[0]), 1).astype('int')
+                feats = np.asarray(ply.colors) * 255
+            coords_offset = np.min(coords, axis=0)
+            coords = coords - coords_offset
             # cache
             self.cache[idx] = (coords, feats)
             cache_percent = int((len(self.cache) / len(self)) * 100)
             if cache_percent > 0 and cache_percent % 10 == 0 and cache_percent != self.last_cache_percent:
                 self.last_cache_percent = cache_percent
+        coords = coords.astype("int32")
         feats = feats.astype("float32")
 
-        return (coords, feats,filedir)
+        return (coords, coords_offset, feats, filedir)
 
 
-def make_data_loader(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=False, 
-                    collate_fn=collate_pointcloud_fn):
+def make_data_loader(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=False,
+                     collate_fn=collate_pointcloud_fn):
     args = {
         'batch_size': batch_size,
         'num_workers': num_workers,
@@ -111,17 +118,18 @@ def make_data_loader(dataset, batch_size=1, shuffle=True, num_workers=1, repeat=
 
 if __name__ == "__main__":
     # filedirs = sorted(glob.glob('/home/ubuntu/HardDisk2/color_training_datasets/training_dataset/'+'*.h5'))
-    filedirs = sorted(glob.glob('/home/ubuntu/HardDisk1/point_cloud_testing_datasets/8i_voxeilzaed_full_bodies/8i/longdress/Ply/'+'*.ply'))
+    filedirs = sorted(glob.glob(
+        '/home/ubuntu/HardDisk1/point_cloud_testing_datasets/8i_voxeilzaed_full_bodies/8i/longdress/Ply/' + '*.ply'))
     test_dataset = PCDataset(filedirs[:10])
     test_dataloader = make_data_loader(dataset=test_dataset, batch_size=2, shuffle=True, num_workers=1, repeat=False,
-                                        collate_fn=collate_pointcloud_fn)
+                                       collate_fn=collate_pointcloud_fn)
     for idx, (coords, feats) in enumerate(tqdm(test_dataloader)):
-        print("="*20, "check dataset", "="*20, 
-            "\ncoords:\n", coords, "\nfeat:\n", feats)
+        print("=" * 20, "check dataset", "=" * 20,
+              "\ncoords:\n", coords, "\nfeat:\n", feats)
 
     test_iter = iter(test_dataloader)
     print(test_iter)
     for i in tqdm(range(10)):
         coords, feats = test_iter.next()
-        print("="*20, "check dataset", "="*20, 
-            "\ncoords:\n", coords, "\nfeat:\n", feats)
+        print("=" * 20, "check dataset", "=" * 20,
+              "\ncoords:\n", coords, "\nfeat:\n", feats)
