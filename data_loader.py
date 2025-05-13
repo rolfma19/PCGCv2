@@ -84,7 +84,7 @@ class PCDataset(torch.utils.data.Dataset):
             if filedir.endswith(".ply"):
                 ply = o3d.io.read_point_cloud(filedir, format="ply")
                 coords = np.asarray(ply.points)
-                feats = np.asarray(ply.colors) * 255
+                feats = np.asarray(ply.colors)
             coords_offset = np.min(coords, axis=0)
             coords = coords - coords_offset
             # cache
