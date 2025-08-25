@@ -47,6 +47,32 @@ def write_ply_ascii_geo(filedir, coords):
 
     return
 
+def write_ply_ascii(filedir, coords, feats, dtype_coords='int32', dtype_feats='int32'):
+    if os.path.exists(filedir): os.system('rm ' + filedir)
+    f = open(filedir, 'a+')
+    f.writelines(['ply\n', 'format ascii 1.0\n'])
+    f.write('element vertex ' + str(coords.shape[0]) + '\n')
+    f.writelines(['property float x\n', 'property float y\n', 'property float z\n'])
+    if feats.shape[-1] == 3:
+        f.writelines(['property uchar red\n', 'property uchar green\n', 'property uchar blue\n'])
+    if feats.shape[-1] == 1:
+        f.writelines(['property uint16 reflectance\n'])
+    f.write('end_header\n')
+    coords = coords.astype(dtype_coords)
+    if feats.shape[-1] == 3:
+        feats = np.clip(feats, 0, 255).astype(dtype_feats)
+        for xyz, rgb in zip(coords, feats):
+            f.writelines([str(xyz[0]), ' ', str(xyz[1]), ' ', str(xyz[2]), ' ',
+                          str(rgb[0]), ' ', str(rgb[1]), ' ', str(rgb[2]), '\n'])
+    if feats.shape[-1] == 1:
+        feats = feats.astype(dtype_feats)
+        for xyz, r in zip(coords, feats):
+            f.writelines([str(xyz[0]), ' ', str(xyz[1]), ' ', str(xyz[2]), ' ',
+                          str(r[0]), '\n'])
+    f.close()
+
+    return
+
 ###########################################################################################################
 
 import torch

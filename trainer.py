@@ -116,7 +116,7 @@ class Trainer():
         self.logger.info('Training Files length:' + str(len(dataloader)))
 
         start_time = time.time()
-        for batch_step, (coords, feats) in enumerate(tqdm(dataloader)):
+        for batch_step, (coords, feats,_) in enumerate(tqdm(dataloader)):
             self.optimizer.zero_grad()
             # data
             x = ME.SparseTensor(features=feats.float(), coordinates=coords, device=device)

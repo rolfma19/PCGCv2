@@ -1,18 +1,21 @@
 import torch
 import MinkowskiEngine as ME
 
-from data_utils import isin, istopk
-criterion = torch.nn.BCEWithLogitsLoss()
+from third_party.PCGCv2.data_utils import isin, istopk
+import torch.nn.functional as F
+
 
 def get_bce(data, groud_truth):
     """ Input data and ground_truth are sparse tensor.
     """
     mask = isin(data.C, groud_truth.C)
-    bce = criterion(data.F.squeeze(), mask.type(data.F.dtype))
-    bce /= torch.log(torch.tensor(2.0)).to(bce.device)
-    sum_bce = bce * data.shape[0]
+    bce = F.binary_cross_entropy(
+        data.F.squeeze(),
+        mask.float().to(data.device),
+        reduction="mean",
+    )
     
-    return sum_bce
+    return bce
 
 def get_bits(likelihood):
     bits = -torch.sum(torch.log2(likelihood))

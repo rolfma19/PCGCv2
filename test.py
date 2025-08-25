@@ -103,7 +103,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--filedir", default='../../../testdata/8iVFB/longdress_vox10_1300.ply')
+    parser.add_argument("--filedir", default='/data/testdata/8iVFB/longdress_vox10_1300.ply')
     parser.add_argument("--outdir", default='./output')
     parser.add_argument("--resultdir", default='./results')
     parser.add_argument("--scaling_factor", type=float, default=1.0, help='scaling_factor')

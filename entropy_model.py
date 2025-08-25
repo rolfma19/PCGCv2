@@ -46,7 +46,7 @@ class EntropyBottleneck(nn.Module):
     > J. Balle, D. Minnen, S. Singh, S. J. Hwang, N. Johnston
     > https://arxiv.org/abs/1802.01436"""
     
-    def __init__(self, channels, init_scale=8, filters=(3,3,3)):
+    def __init__(self, channels, init_scale=10, filters=(3,3,3,3)):
         """create parameters.
         """
         super(EntropyBottleneck, self).__init__()
@@ -92,7 +92,7 @@ class EntropyBottleneck(nn.Module):
         """
         logits = inputs
         for i in range(len(self._filters) + 1):
-            matrix = torch.nn.functional.softplus(self._matrices[i])
+            matrix = torch.nn.functional.softplus(self._matrices[i].clone())
             logits = torch.matmul(matrix, logits)
             logits += self._biases[i]
             factor = torch.tanh(self._factors[i])
